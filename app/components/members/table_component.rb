@@ -30,7 +30,8 @@
 
 module Members
   class TableComponent < ::TableComponent
-    options :authorize_update, :available_roles, :is_filtered, :project
+    options :authorize_update, :authorize_delete, :authorize_work_package_shares_delete
+    options :available_roles, :is_filtered, :project
     columns :name, :mail, :roles, :groups, :shared, :status
     sortable_columns :name, :mail, :status
 

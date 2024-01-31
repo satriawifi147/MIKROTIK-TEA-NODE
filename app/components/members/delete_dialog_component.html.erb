@@ -1,0 +1,73 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) 2012-2024 the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<%= render(Primer::Alpha::Dialog.new(id:, title: 'Remove member')) do |dialog| %>
+  <% dialog.with_header(variant: :large) %>
+
+  <% case %>
+  <% when can_delete? && can_delete_shares? %>
+    <% dialog.with_body do %>
+      <%= render(Primer::Beta::Text.new(tag: 'p')) { "This will remove the user’s role from this project. However, #{shared_work_packages_count} work packages have also been shared with this user, possibly with different privileges." } %>
+      <%= render(Primer::Beta::Text.new(tag: 'p')) { 'Would you like to keep their access to shared work packages or remove all access?' } %>
+    <% end %>
+
+    <% dialog.with_footer do %>
+      <%= render(Primer::Beta::Button.new(data: { close_dialog_id: id })) { t(:button_cancel) } %>
+      <%= render(Primer::Beta::Button.new(scheme: :danger, tag: :a, href: delete_url(delete_member: true), data: { method: :delete })) { "Keep only shared" } %>
+      <%= render(Primer::Beta::Button.new(scheme: :danger, tag: :a, href: delete_url(delete_member: true, delete_work_package_shares: true), data: { method: :delete })) { "Remove all" } %>
+    <% end %>
+  <% when can_delete? %>
+    <% dialog.with_body do %>
+      <%= render(Primer::Beta::Text.new(tag: 'p')) { 'Deleting this member will revoke all access privileges of the user to the project.' } %>
+    <% end %>
+
+    <% dialog.with_footer do %>
+      <%= render(Primer::Beta::Button.new(data: { close_dialog_id: id })) { t(:button_cancel) } %>
+      <%= render(Primer::Beta::Button.new(scheme: :danger, tag: :a, href: delete_url(delete_member: true), data: { method: :delete })) { t(:button_remove) } %>
+    <% end %>
+  <% when can_delete_shares? %>
+    <% dialog.with_body do %>
+      <%= render(Primer::Beta::Text.new(tag: 'p')) { "This user does not have a direct role in this project but #{shared_work_packages_count} work packages have been shared with them. This action will revoke their access to all shared work packages." } %>
+    <% end %>
+
+    <% dialog.with_footer do %>
+      <%= render(Primer::Beta::Button.new(data: { close_dialog_id: id })) { t(:button_cancel) } %>
+      <%= render(Primer::Beta::Button.new(scheme: :danger, tag: :a, href: delete_url(delete_work_package_shares: true), data: { method: :delete })) { t(:button_remove) } %>
+    <% end %>
+  <% else %>
+    <% dialog.with_body do %>
+      <%= render(Primer::Beta::Text.new(tag: 'p')) { 'You cannot delete this member because they belong to a group that is itself a member of this project.' } %>
+      <%= render(Primer::Beta::Text.new(tag: 'p')) { 'You can either remove the group as a member of the project or this specific member from the group in the administration settings.' } %>
+    <% end %>
+
+    <% dialog.with_footer do %>
+      <%= render(Primer::Beta::Button.new(data: { close_dialog_id: id })) { t(:button_cancel) } %>
+    <% end %>
+  <% end %>
+<% end %>

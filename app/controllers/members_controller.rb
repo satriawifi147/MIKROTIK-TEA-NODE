@@ -29,8 +29,8 @@
 class MembersController < ApplicationController
   include MemberHelper
   model_object Member
-  before_action :find_model_object_and_project, except: [:autocomplete_for_member]
-  before_action :find_project_by_project_id, only: [:autocomplete_for_member]
+  before_action :find_model_object_and_project, except: [:autocomplete_for_member, :destroy_by_principal]
+  before_action :find_project_by_project_id, only: [:autocomplete_for_member, :destroy_by_principal]
   before_action :authorize
 
   def index
@@ -82,13 +82,36 @@ class MembersController < ApplicationController
                                      per_page: params[:per_page])
   end
 
-  def destroy
-    service_call = Members::DeleteService
-      .new(user: current_user, model: @member)
-      .call
+  def destroy_by_principal
+    principal = Principal.find(params[:principal_id])
 
-    if service_call.success?
-      display_success(I18n.t(:notice_member_removed, user: @member.principal.name))
+    overall_result = []
+
+    if params[:delete_member]
+      project_member = Member.of_project(@project).find_by(principal:)
+
+      # It should be an error if delete_member param was set, but project_member wasn't found
+      overall_result << Members::DeleteService
+        .new(user: current_user, model: project_member)
+        .call if project_member
+    end
+
+    if params[:delete_work_package_shares]
+      shares = Member.of_anything_in_project(@project).of_any_work_package.where(principal:)
+
+      shares.each do |share|
+        overall_result << WorkPackageMembers::DeleteService
+          .new(user: current_user, model: share)
+          .call
+      end
+    end
+
+    if overall_result.all?(&:success?)
+      display_success(I18n.t(:notice_member_removed, user: principal.name))
+    elsif overall_result.all?(&:success?)
+      display_success(I18n.t(:notice_member_removed, user: principal.name))
+    else
+      display_error(overall_result.first)
     end
 
     redirect_to project_members_path(project_id: @project)
@@ -136,6 +159,8 @@ class MembersController < ApplicationController
       project: @project,
       available_roles: roles,
       authorize_update: authorize_for('members', 'update'),
+      authorize_delete: authorize_for('members', 'destroy_by_principal'),
+      authorize_work_package_shares_delete: authorize_for('work_packages/shares/bulk', 'destroy'),
       is_filtered: Members::UserFilterComponent.filtered?(params)
     }
   end
