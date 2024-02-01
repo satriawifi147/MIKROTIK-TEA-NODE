@@ -3272,6 +3272,7 @@ en:
 
   queries:
     apply_filter: Apply preconfigured filter
+    configure_view: Configure view
 
   top_menu:
     additional_resources: "Additional resources"
