@@ -44,17 +44,17 @@ module Projects
     end
 
     def column_value(column)
-      if column.to_s.start_with? 'cf_'
+      if custom_field_column?(column)
         custom_field_column(column)
       else
-        super
+        send(column.attribute)
       end
     end
 
     def custom_field_column(column)
       return nil unless user_can_view_project?
 
-      cf = custom_field(column)
+      cf = column.custom_field
       custom_value = project.formatted_custom_value_for(cf)
 
       if cf.field_format == 'text'
@@ -152,21 +152,16 @@ module Projects
     end
 
     def column_css_class(column)
-      "#{super} #{additional_css_class(column)}"
-    end
-
-    def custom_field(name)
-      table.project_custom_fields.fetch(name)
+      "#{column.attribute} #{additional_css_class(column)}"
     end
 
     def additional_css_class(column)
-      case column
-      when :name
+      if column.attribute == :name
         "project--hierarchy #{project.archived? ? 'archived' : ''}"
-      when :status_explanation
+      elsif column.attribute == :status_explanation
         "-no-ellipsis"
-      when /\Acf_/
-        cf = custom_field(column)
+      elsif custom_field_column?(column)
+        cf = column.custom_field
         formattable = cf.field_format == 'text' ? ' -no-ellipsis' : ''
         "format-#{cf.field_format}#{formattable}"
       end
@@ -253,6 +248,10 @@ module Projects
 
     def user_can_view_project?
       User.current.allowed_in_project?(:view_project, project)
+    end
+
+    def custom_field_column?(column)
+      column.is_a?(Queries::Projects::Selects::CustomField)
     end
   end
 end
