@@ -117,6 +117,10 @@ module Projects
       end
     end
 
+    def description
+      content_tag :div, helpers.format_text(project.description)
+    end
+
     def public
       helpers.checked_image project.public?
     end
