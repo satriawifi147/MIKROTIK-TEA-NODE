@@ -81,7 +81,7 @@ class Workflows::BulkUpdateService < BaseServices::Update
     values = workflows
              .map { |w| "(#{w.attributes.slice(*columns).values.join(', ')})" }
              .join(', ')
-
+    # TODO:
     # use Workflow.insert_all in rails 6
     sql = <<-SQL
           INSERT
