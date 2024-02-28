@@ -42,12 +42,20 @@ RSpec.describe WorkPackages::UpdateAncestorsService, type: :model do
   let(:aggregate_done_ratio) { 0.0 }
   let(:ignore_non_working_days) { [false, false, false] }
 
+  def set_attributes_on(work_package, attributes)
+    WorkPackages::SetAttributesService
+      .new(user:,
+           model: work_package,
+           contract_class: WorkPackages::UpdateContract)
+      .call(attributes)
+  end
+
   describe 'done_ratio/estimated_hours/remaining_hours propagation' do
     context 'when setting estimated hours of a work package' do
       shared_let(:work_package) { create(:work_package, status: open_status) }
 
       before do
-        work_package.estimated_hours = 2.0
+        set_attributes_on(work_package, estimated_hours: 2.0)
       end
 
       subject(:call_result) do
@@ -63,37 +71,99 @@ RSpec.describe WorkPackages::UpdateAncestorsService, type: :model do
       end
     end
 
-    context 'when setting closed status to a work package' do
-      shared_let(:parent) { create(:work_package) }
-      shared_let(:child) { create(:work_package, parent:, status: open_status) }
+    context 'when setting the status of a work package' do
+      shared_let(:open_status) { create(:status) }
+      shared_let(:new_status_with_done_ratio) { create(:status, default_done_ratio: 100) }
+      shared_let(:new_status_without_done_ratio) { create(:status) }
 
       shared_examples 'updates % complete of ancestors' do
-        it 'considers the work package as 100 % complete and sets the ' \
+        it 'considers the work package as the % complete ' \
+           'attached to the status and sets the ' \
            'derived % complete value of the ancestors accordingly' do
+          expect(child.done_ratio)
+            .to eq(new_status_with_done_ratio.default_done_ratio)
+
           expect do
             updated_attributes = child.changes.keys.map(&:to_sym)
             described_class.new(user:, work_package: child)
-              .call(updated_attributes)
+                           .call(updated_attributes)
             parent.reload
           end
-            .to change(parent, :derived_done_ratio).from(0).to(100)
+            .to change(parent, :derived_done_ratio).from(0).to(33)
         end
       end
 
-      context 'with the status field' do
-        before do
-          child.status = closed_status
-        end
+      shared_examples 'does not update % complete of ancestors' do
+        it 'does not consider the closed status a special value and ' \
+           'does not set % complete of the work package or set the ' \
+           'derived % complete value of the ancestors accordingly' do
+          expect(child.done_ratio).to eq(0)
 
-        include_examples 'updates % complete of ancestors'
+          expect do
+            updated_attributes = child.changes.keys.map(&:to_sym)
+            described_class.new(user:, work_package: child)
+                           .call(updated_attributes)
+            parent.reload
+          end
+            .not_to change(parent, :derived_done_ratio)
+        end
       end
 
-      context 'with the status_id field' do
-        before do
-          child.status_id = closed_status.id
-        end
+      context 'when using the "status-based" % complete mode',
+              with_settings: { work_package_done_ratio: 'status' } do
+        context 'with both parent and children having estimated hours set' do
+          shared_let(:parent) do
+            create(:work_package,
+                   estimated_hours: 10.0,
+                   remaining_hours: 10.0,
+                   derived_estimated_hours: 15.0,
+                   derived_remaining_hours: 15.0,
+                   status: open_status)
+          end
+          shared_let(:child) do
+            create(:work_package,
+                   parent:,
+                   estimated_hours: 5.0,
+                   remaining_hours: 5.0,
+                   status: open_status)
+          end
 
-        include_examples 'updates % complete of ancestors'
+          context 'when the new status has its default done ratio set' do
+            context 'with the status field' do
+              before do
+                set_attributes_on(child, status: new_status_with_done_ratio)
+              end
+
+              include_examples 'updates % complete of ancestors'
+            end
+
+            context 'with the status_id field' do
+              before do
+                set_attributes_on(child, status_id: new_status_with_done_ratio.id)
+              end
+
+              include_examples 'updates % complete of ancestors'
+            end
+          end
+
+          context 'when the closed status has no default done ratio set' do
+            context 'with the status field' do
+              before do
+                set_attributes_on(child, status: new_status_without_done_ratio)
+              end
+
+              include_examples 'does not update % complete of ancestors'
+            end
+
+            context 'with the status_id field' do
+              before do
+                set_attributes_on(child, status_id: new_status_without_done_ratio.id)
+              end
+
+              include_examples 'does not update % complete of ancestors'
+            end
+          end
+        end
       end
     end
 
